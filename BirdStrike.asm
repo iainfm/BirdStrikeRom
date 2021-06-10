@@ -1,12 +1,20 @@
 \ Bird Strike ROM
 \
+\ TODO: Fix *HELP hang
+
 \ Zero page uses
 from    = &70
 to      = &72
+comline = &F2
+jump    = &38
 
+\ Stack
+stack   = &100
+
+\ Build address
+addr    = &8000        \ Sideways ROM/RAM
 
 \ Relocation source and destination
-addr    = &8000        \ ROM build address
 srce    = addr + &400  \ Align with original load address for simplicity
 relo    = &1400        \ Original load addres
 game    = &1E00        \ Game start address
@@ -19,8 +27,6 @@ osnewl  = $FFE7
 oswrch  = $FFEE
 osbyte  = &FFF4
 
-\ ROM things
-comline = &F2
 
 org addr
 
@@ -145,15 +151,20 @@ org addr
 	 PHA
 	 LDX      #&FF
 	 DEY
-	 STY      &100
+	 STY      stack
 
 .ctloop
 	 INX
 	 INY
 	 LDA      table, X
-	 BMI      found
-	 CMP      (comline), Y
-	 BEQ       ctloop
+	 BMI      found         \ end of string? needs improving.
+	 LDA      (comline), Y
+	 CMP      #&60          \ needs upper-casing?
+	 BCC	  no
+     AND      #&5F
+.no
+	 CMP      table, X
+	 BEQ      ctloop
 
 .again
 	 INX
@@ -162,7 +173,7 @@ org addr
 	 CMP      #&FF
 	 BEQ      out
 	 INX
-	 LDY      &100
+	 LDY      stack
 	 JMP      ctloop
 	 
 .out
@@ -177,16 +188,19 @@ org addr
 .found
 	 CMP      #&FF
 	 BEQ      not_this_rom
-	 STA      &39
+	 STA      jump+1
 	 INX
 	 LDA      table, X
-	 STA      &38
-	 JMP      (&38)
+	 STA      jump
+	 JMP      (jump)
 	 
 .table
 	 EQUS     "BIRDS"
 	 EQUB     instructions DIV 256
 	 EQUB     instructions MOD 256
+	 EQUS     "BIRBS"                 \ Easter egg / test
+	 EQUB     birds DIV 256
+	 EQUB     birds MOD 256
 	 EQUB     &FF
 	 	 
 .commands
@@ -210,7 +224,6 @@ org addr
 	 \ Disable the cursor
 	 LDY     #&0A
 	 
-\ Relocate loading screen to MODE 7 screen memory
 .vdu
 	 LDA     vducalls, Y
 	 JSR     oswrch
@@ -219,6 +232,7 @@ org addr
 	 JMP     vdu_done
 	 
 .vducalls
+	         \ 23;10,32;0;0;0;
      EQUB    &00,&00,&00,&00,&00,&00,&20,&0A,&00,&17
 	 
 .vdu_done
@@ -231,8 +245,8 @@ org addr
 	 LDA     #&7C    \ MODE 7 screen address
 	 STA     to+1
 	 LDX     #&03    \ 3 pages is sufficient
+	 \ Relocate loading screen to MODE 7 screen memory
 	 JSR     relocate
-	 \ JMP     found \ remove this
 
 \ Relocate game to original load address
 .birds
@@ -248,19 +262,20 @@ org addr
 
      LDX     #pages
 	 JSR     relocate
+	 
+	 \ Launch the game
 	 JMP     game
 
 \ Relocation loop
 .relocate
-.loop
      LDA     (from),Y
      STA     (to),Y
      INY
-     BNE     loop
+     BNE     relocate
      INC     from+1
      INC     to+1
      DEX
-     BNE     loop
+     BNE     relocate
 	 RTS
 
 
@@ -269,6 +284,8 @@ org addr
 org srce
 INCBIN "BIRDS"
 
+\ The original game loading screen *SAVEd,
+\ stored at loadsc and copied to &7C00
 org loadsc
 INCBIN "loadsc"
 
