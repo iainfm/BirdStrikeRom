@@ -27,8 +27,7 @@ osnewl  = $FFE7
 oswrch  = $FFEE
 osbyte  = &FFF4
 
-
-org addr
+org   addr
 
 \ ROM header based on Bruce Smith's code
 .romstart
@@ -157,21 +156,29 @@ org addr
 	 INX
 	 INY
 	 LDA      table, X
-	 BMI      found         \ end of string? needs improving.
+	 BMI      found         \ end of string?
 	 LDA      (comline), Y
-	 CMP      #&60          \ needs upper-casing?
-	 BCC	  no
-     AND      #&5F
-.no
-	 CMP      table, X
+	 
+	 CMP      #&2E			\ ASC"." - check for abbreviations
+	 BNE      not_dot
+	 
+.skip_if_dot                \ Skip the rest of the current rom command	 
+	 INX                    
+	 LDA      table, X      
+	 BMI      found         \ Jump to found when the jump address is encountered
+	 BPL      skip_if_dot   \ Loop around until the table command is exhausted
+	 
+.not_dot
+     AND      #&5F          \ was &DF
+	 CMP      table, X      \ keep testing for matches
 	 BEQ      ctloop
 
-.again
+.again                      \ fetech next command in table
 	 INX
 	 LDA      table, X
 	 BPL      again
-	 CMP      #&FF
-	 BEQ      out
+	 CMP      #&FF          \ no more?
+	 BEQ      out           \ none matched; exit
 	 INX
 	 LDY      stack
 	 JMP      ctloop
@@ -186,8 +193,10 @@ org addr
 	 RTS
 
 .found
+     
 	 CMP      #&FF
 	 BEQ      not_this_rom
+
 	 STA      jump+1
 	 INX
 	 LDA      table, X
@@ -195,12 +204,12 @@ org addr
 	 JMP      (jump)
 	 
 .table
-	 EQUS     "BIRDS"
+	 EQUS     "BIRDS",&0D  \ &0D ensures that only *BIRDS matches, not *BIRDSTR etc
 	 EQUB     instructions DIV 256
 	 EQUB     instructions MOD 256
-	 EQUS     "BIRBS"                 \ Easter egg / test
-	 EQUB     birds DIV 256
-	 EQUB     birds MOD 256
+	 \ EQUS     "BUIL",&0D   \ Test
+	 \ EQUB     instructions DIV 256
+	 \ EQUB     instructions MOD 256
 	 EQUB     &FF
 	 	 
 .commands
@@ -268,6 +277,36 @@ org addr
 
 \ Relocation loop
 .relocate
+
+\ <Testing>
+\     PHA
+\	 LDA     #&00
+\	 STA     &7FFF
+\.delay
+\     DEC     &7FFF
+\	 BNE     delay
+\	 PLA
+\ </Testing>
+
+.countdown	 
+	 TXA
+	 PHA                \ Save A
+	 LSR     A          \ Divide by 16 to get MSB
+	 LSR     A          \ Max MSB should be 4 (16k ROM) or 8 (32k rom)
+	 LSR     A          \ So no need to worry about hexifying it
+	 LSR     A          
+	 ORA     #&30       \ ASC"0"
+	 STA     &7C00      \ Write to M7 screen memory
+	 
+	 PLA                \ Restore A
+	 AND     #&0F       \ Get LSB
+	 SED                \ Decimal processing
+	 CMP     #&0A       \ Compare with 10
+	 ADC     #&30       \ Add 30+1
+	 CLD                \ Clear decimal flag
+	 STA     &7C01      \ Write to M7 screen memory
+	 
+.mem_copy	 
      LDA     (from),Y
      STA     (to),Y
      INY
@@ -276,8 +315,12 @@ org addr
      INC     to+1
      DEX
      BNE     relocate
-	 RTS
 
+.clear_countdown	 
+	 LDA     #&20       \ ASC" "
+	 STA     &7C00      \ top left chr
+	 STA     &7C01      \ top left chr +1
+	 RTS
 
 \ The original game binary stored in ROM and
 \ copied to &1400 when launched
