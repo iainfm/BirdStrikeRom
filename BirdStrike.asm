@@ -16,9 +16,9 @@ addr    = &8000        \ Sideways ROM/RAM
 
 \ Relocation source and destination
 srce    = addr + &400  \ Align with original load address for simplicity
-relo    = &1400        \ Original load addres
+relo    = &1200        \ Original load addres
 game    = &1E00        \ Game start address
-pages   = &1D          \ Number of pages to relocate
+pages   = &1E          \ Number of pages to relocate
 loadsc  = &AC00        \ Loading screen ROM address. Align with &7C00 for simplicity
 
 \ OS calls
@@ -271,6 +271,10 @@ org   addr
 
      LDX     #pages
 	 JSR     relocate
+	 
+	 \ Fix some copy-protection
+	 LDA     #&01
+	 STA     &5D
 	 
 	 \ Launch the game
 	 JMP     game
