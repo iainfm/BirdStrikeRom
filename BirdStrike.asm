@@ -8,6 +8,10 @@ to      = &72
 comline = &F2
 jump    = &38
 
+decompress_src = &50
+decompress_dst = &52
+decompress_tmp = &54
+
 \ Stack
 stack   = &100
 
@@ -207,9 +211,9 @@ org   addr
 	 EQUS     "BIRDS",&0D  \ &0D ensures that only *BIRDS matches, not *BIRDSTR etc
 	 EQUB     instructions DIV 256
 	 EQUB     instructions MOD 256
-	 \ EQUS     "BUIL",&0D   \ Test
-	 \ EQUB     instructions DIV 256
-	 \ EQUB     instructions MOD 256
+	 EQUS     "BTEST",&0D   \ Test
+	 EQUB     birds DIV 256
+	 EQUB     birds MOD 256
 	 EQUB     &FF
 	 	 
 .commands
@@ -246,30 +250,35 @@ org   addr
 	 
 .vdu_done
 	 \ Set up from and to addresses
-     LDY     #&00
-	 STY     from
-	 LDA     #HI(loadsc)
-	 STA     from+1
-	 STY     to
-	 LDA     #&7C    \ MODE 7 screen address
-	 STA     to+1
-	 LDX     #&03    \ 3 pages is sufficient
+	 
+	 LDY     #LO(loadsc)
+     STY     decompress_src
+     LDA     #HI(loadsc)
+     STA     decompress_src+1
+
+	 LDY     #&00
+     STY     decompress_dst
+     LDA     #&7C
+     STA     decompress_dst+1
+	 
+	 
 	 \ Relocate loading screen to MODE 7 screen memory
 	 JSR     relocate
 
 \ Relocate game to original load address
 .birds
-	 \ Set up from and to addresses
-     LDY     #&00
-     STY     from
+	 \ Set up from and to addresses	
+     LDY     #LO(srce)
+     STY     decompress_src
      LDA     #HI(srce)
-     STA     from+1
+     STA     decompress_src+1
 
-     STY     to
+	 LDY     #LO(relo)
+     STY     decompress_dst
      LDA     #HI(relo)
-     STA     to+1
+     STA     decompress_dst+1
 
-     LDX     #pages
+     \ LDX     #pages
 	 JSR     relocate
 	 
 	 \ Fix some copy-protection
@@ -279,62 +288,79 @@ org   addr
 	 \ Launch the game
 	 JMP     game
 
-\ Relocation loop
+\ Relocation decompression loop
 .relocate
+	ldx #0                  ; (zp,x) will be used to access (zp,0)
+	
+.for
+	lda (decompress_src,x)  ; next control byte
+	beq done                ; 0 signals end of decompression
+	bpl copy_raw            ; msb=0 means just copy this many bytes from source
+	clc
+	adc #&80 + 2            ; flip msb, then add 2, we wont request 0 or 1 as that wouldn't save anything
+	sta decompress_tmp      ; count of bytes to copy (>= 2)
+	ldy #1                  ; byte after control is offset
+	lda (decompress_src),y  ; offset from current src - 256
+	tay
+	
+		lda decompress_src  ; advance src past the control byte and offset
+		clc
+		adc #2
+		sta decompress_src
+		bcc pg1
+		inc decompress_src+1
+	.pg1
+	
+.copy_previous              ; copy tmp bytes from dst - 256 + offset
 
-\ <Testing>
-\     PHA
-\	 LDA     #&00
-\	 STA     &7FFF
-\.delay
-\     DEC     &7FFF
-\	 BNE     delay
-\	 PLA
-\ </Testing>
+	dec decompress_dst+1    ; -256
+	lda (decompress_dst),y  ; +y
+	inc decompress_dst+1    ; +256
+	sta (decompress_dst,x)  ; +0
+	
+		inc decompress_dst  ; INC dst (used for both src of copy (-256) and dst)
+		bne pg2
+		inc decompress_dst+1
+	.pg2
+	
+	dec decompress_tmp      ; count down bytes to copy
+	bne copy_previous
+	beq for                 ; after copying, go back for next control byte
 
-.countdown	 
-	 TXA
-	 PHA                \ Save A
-	 LSR     A          \ Divide by 16 to get MSB
-	 LSR     A          \ Max MSB should be 4 (16k ROM) or 8 (32k rom)
-	 LSR     A          \ So no need to worry about hexifying it
-	 LSR     A          
-	 ORA     #&30       \ ASC"0"
-	 STA     &7C00      \ Write to M7 screen memory
-	 
-	 PLA                \ Restore A
-	 AND     #&0F       \ Get LSB
-	 SED                \ Decimal processing
-	 CMP     #&0A       \ Compare with 10
-	 ADC     #&30       \ Add 30+1
-	 CLD                \ Clear decimal flag
-	 STA     &7C01      \ Write to M7 screen memory
-	 
-.mem_copy	 
-     LDA     (from),Y
-     STA     (to),Y
-     INY
-     BNE     relocate
-     INC     from+1
-     INC     to+1
-     DEX
-     BNE     relocate
+.copy_raw
 
-.clear_countdown	 
-	 LDA     #&20       \ ASC" "
-	 STA     &7C00      \ top left chr
-	 STA     &7C01      \ top left chr +1
+	tay                     ; bytes to copy from src
+.copy
+	
+		inc decompress_src  ; INC src (1st time past control byte)
+		bne pg3
+		inc decompress_src+1
+	.pg3
+	
+	dey
+	bmi for
+	lda (decompress_src,x)  ; copy bytes
+	sta (decompress_dst,x)
+	
+		inc decompress_dst  ; INC dst
+		bne pg4
+		inc decompress_dst+1
+	.pg4
+	
+	bne copy                ; rest of bytes ; #1 replace with jmp if wrapping back to &0000 is required
+
+.done
 	 RTS
 
 \ The original game binary stored in ROM and
-\ copied to &1400 when launched
+\ copied to &1200 when launched
 org srce
-INCBIN "BIRDS"
+INCBIN "BIRDScmp"
 
 \ The original game loading screen *SAVEd,
 \ stored at loadsc and copied to &7C00
 org loadsc
-INCBIN "loadsc"
+INCBIN "ldscrmp"
 
 .end
 
