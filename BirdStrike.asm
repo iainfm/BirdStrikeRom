@@ -300,15 +300,20 @@ org   addr
 .for
 	lda (decompress_src,x)  ; next control byte
 	
+	 \ TODO: Progress counter - needs modified to work with decompressor
+	 
 	 PHA                \ Save A
 	 PHA                \ Save A
 	 LSR     A          \ Divide by 16 to get MSB
 	 LSR     A          \ Max MSB should be 4 (16k ROM) or 8 (32k rom)
 	 LSR     A          \ So no need to worry about hexifying it
 	 LSR     A          
-	 ORA     #&30       \ ASC"0"
+	 \ ORA     #&30       \ ASC"0"
+	 SED                \ Decimal processing
+	 CMP     #&0A       \ Compare with 10
+	 ADC     #&30       \ Add 30+1
+	 CLD                \ Clear decimal flag
 	 STA     &7FE5      \ Write to M7 screen memory
-	 
 	 PLA                \ Restore A
 	 AND     #&0F       \ Get LSB
 	 SED                \ Decimal processing
