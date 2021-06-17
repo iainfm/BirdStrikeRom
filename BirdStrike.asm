@@ -281,6 +281,11 @@ org   addr
      \ LDX     #pages
 	 JSR     relocate
 	 
+	 \ Clear the counter
+	 LDA     #&00
+	 STA     &7FE5
+	 STA     &7FE6
+	 
 	 \ Fix some copy-protection
 	 LDA     #&01
 	 STA     &5D
@@ -294,6 +299,25 @@ org   addr
 	
 .for
 	lda (decompress_src,x)  ; next control byte
+	
+	 PHA                \ Save A
+	 PHA                \ Save A
+	 LSR     A          \ Divide by 16 to get MSB
+	 LSR     A          \ Max MSB should be 4 (16k ROM) or 8 (32k rom)
+	 LSR     A          \ So no need to worry about hexifying it
+	 LSR     A          
+	 ORA     #&30       \ ASC"0"
+	 STA     &7FE5      \ Write to M7 screen memory
+	 
+	 PLA                \ Restore A
+	 AND     #&0F       \ Get LSB
+	 SED                \ Decimal processing
+	 CMP     #&0A       \ Compare with 10
+	 ADC     #&30       \ Add 30+1
+	 CLD                \ Clear decimal flag
+	 STA     &7FE6      \ Write to M7 screen memory
+     PLA	
+	
 	beq done                ; 0 signals end of decompression
 	bpl copy_raw            ; msb=0 means just copy this many bytes from source
 	clc
