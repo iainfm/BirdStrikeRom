@@ -11,6 +11,7 @@ jump    = &38
 decompress_src = &50
 decompress_dst = &52
 decompress_tmp = &54
+decompress_ctr = &56
 
 \ Stack
 stack   = &100
@@ -294,15 +295,18 @@ org   addr
 	 JMP     game
 
 \ Relocation decompression loop
+\ Decompaction code by 'Tricky' - http://www.retrosoftware.co.uk/forum/viewtopic.php?f=73&t=999
+
 .relocate
 	ldx #0                  ; (zp,x) will be used to access (zp,0)
+	stx      decompress_ctr
 	
 .for
-	lda (decompress_src,x)  ; next control byte
+	lda decompress_ctr  ; progress counter
 	
 	 \ TODO: Progress counter - needs modified to work with decompressor
 	 
-	 PHA                \ Save A
+	 \ PHA                \ Save A
 	 PHA                \ Save A
 	 LSR     A          \ Divide by 16 to get MSB
 	 LSR     A          \ Max MSB should be 4 (16k ROM) or 8 (32k rom)
@@ -321,8 +325,9 @@ org   addr
 	 ADC     #&30       \ Add 30+1
 	 CLD                \ Clear decimal flag
 	 STA     &7FE6      \ Write to M7 screen memory
-     PLA	
+     \ PLA	
 	
+	lda (decompress_src,x)  ; next control byte
 	beq done                ; 0 signals end of decompression
 	bpl copy_raw            ; msb=0 means just copy this many bytes from source
 	clc
@@ -350,6 +355,7 @@ org   addr
 		inc decompress_dst  ; INC dst (used for both src of copy (-256) and dst)
 		bne pg2
 		inc decompress_dst+1
+		inc decompress_ctr
 	.pg2
 	
 	dec decompress_tmp      ; count down bytes to copy
