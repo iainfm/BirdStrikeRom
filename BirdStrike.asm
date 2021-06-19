@@ -71,19 +71,20 @@ org   addr
 	 TXA
 	 PHA
 	 LDA      (comline), Y
-	 CMP      #&0D
-	 BEQ      over
+	 CMP      #&0D          \ Plain *HELP?
+	 BEQ      over          \ Skip to over
 	 LDX      #&FF
 	 DEY
 
 .table_loop
 	 INX
 	 INY
-	 LDA      table, X
-	 CMP      (comline), Y
-	 BEQ      table_loop
-	 CMP      #&FE
-	 BEQ      details
+	 STY &3000
+	 LDA      table, X      \ Get current command table byte
+	 CMP      (comline), Y  \ Compare with command line
+	 BEQ      table_loop    \ Keep checking
+	 CMP      #&FE          \ not sure what this is...
+	 BEQ      details       \ ...something to do with *HELP <command>?
 	 PLA
 	 TAX
 	 PLA
@@ -105,7 +106,7 @@ org   addr
 	 JSR      osnewl
 	 LDX      #&FF
 	
-.help_loop
+.help_loop                 \ Print the ROM title
      INX
 	 LDA      title, X
 	 JSR      osasci
@@ -113,7 +114,7 @@ org   addr
 	 
 	 LDX      #&FF
 
-.ver_loop
+.ver_loop                  \ Print the ROM version
 	 INX
 	 LDA      version, X
 	 JSR      osasci
@@ -122,7 +123,7 @@ org   addr
 	 
 	 LDX      #&FF
 	 
-.commands_loop
+.commands_loop             \ Print the ROM commands
 	 INX
 	 LDA      commands, X
 	 JSR      osasci
@@ -157,64 +158,73 @@ org   addr
 	 DEY
 	 STY      stack
 
+\ On entry, X=&FF, Y=&00
+
 .ctloop
 	 INX
 	 INY
-	 LDA      table, X
-	 BMI      found         \ end of string?
-	 LDA      (comline), Y
+	 
+\ 1st loop X=&00, Y=&01 ((comline),0 is the *)
+
+	 LDA      table, X      \ Get the current byte from the command table
+	 BMI      found         \ end of string if A>=80, ie the jump address
+	 LDA      (comline), Y  \ Get the current byte from the command line
 	 
 	 CMP      #&2E			\ ASC"." - check for abbreviations
 	 BNE      not_dot
 	 
-.skip_if_dot                \ Skip the rest of the current rom command	 
+	 LDA      table, X      \ Check we're not matching a dot with the end of the command
+	 CMP      #&0D
+	 BEQ      again         \ Try next command if so
+	 
+.skip_if_dot                \ Skip the rest of the current rom command
 	 INX                    
 	 LDA      table, X      
 	 BMI      found         \ Jump to found when the jump address is encountered
 	 BPL      skip_if_dot   \ Loop around until the table command is exhausted
 	 
 .not_dot
-     AND      #&5F          \ was &DF
-	 CMP      table, X      \ keep testing for matches
-	 BEQ      ctloop
+     AND      #&5F          \ Upper-case the comline
+	 CMP      table, X      \ Compare with the command table
+	 BEQ      ctloop        \ If matched keep testing
 
-.again                      \ fetech next command in table
+.again                      \ fetch next command in table
 	 INX
 	 LDA      table, X
-	 BPL      again
+	 BPL      again         \ Loop to skip the current jump address
 	 CMP      #&FF          \ no more?
 	 BEQ      out           \ none matched; exit
-	 INX
-	 LDY      stack
-	 JMP      ctloop
+	 INX                    \ Skip the upper bit
+	 LDY      stack         \ recover the comtable offset
+	 JMP      ctloop        \ go again
 	 
 .out
 .not_this_rom
-	 PLA
+	 PLA                    \ Restore everything...
 	 TAX
 	 PLA
 	 TAY
 	 PLA
-	 RTS
+	 RTS                    \ ... and return
 
 .found
      
-	 CMP      #&FF
-	 BEQ      not_this_rom
+	 CMP      #&FF          \ Check for the end of the command table
+	 BEQ      not_this_rom  \ If we've hit it, it's not for us
 
-	 STA      jump+1
+	 STA      jump+1        \ otherwise, put the LSB in jump...
 	 INX
 	 LDA      table, X
-	 STA      jump
-	 JMP      (jump)
+	 STA      jump          \ ...and the MSB in jump+1
+	 JMP      (jump)        \ Then jump
 	 
 .table
 	 EQUS     "BIRDS",&0D  \ &0D ensures that only *BIRDS matches, not *BIRDSTR etc
 	 EQUB     instructions DIV 256
 	 EQUB     instructions MOD 256
-	 EQUS     "BTEST",&0D   \ Test
-	 EQUB     birds DIV 256
-	 EQUB     birds MOD 256
+	 \ EQUS     "BIRDST",&0D   \ Test
+	 \ EQUB     birds DIV 256
+	 \ EQUB     birds MOD 256
 	 EQUB     &FF
 	 	 
 .commands
@@ -262,11 +272,10 @@ org   addr
      LDA     #&7C
      STA     decompress_dst+1
 	 
-	 
-	 \ Relocate loading screen to MODE 7 screen memory
+	 \ Decompress the loading screen to MODE 7 screen memory
 	 JSR     relocate
 
-\ Relocate game to original load address
+     \ Decompress the game to original load address
 .birds
 	 \ Set up from and to addresses	
      LDY     #LO(srce)
