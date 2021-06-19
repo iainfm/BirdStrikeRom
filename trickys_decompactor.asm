@@ -2,33 +2,28 @@
 \ Decompaction code by 'Tricky' - http://www.retrosoftware.co.uk/forum/viewtopic.php?f=73&t=999
 
 	ldx #0                  ; (zp,x) will be used to access (zp,0)
-	stx      decompress_ctr
+	stx      decompress_ctr \ Initialise decompression counter
 	
 .for
 	lda decompress_ctr  ; progress counter
-	
-	 \ TODO: Progress counter - needs modified to work with decompressor
 	 
-	 \ PHA                \ Save A
 	 PHA                \ Save A
 	 LSR     A          \ Divide by 16 to get MSB
-	 LSR     A          \ Max MSB should be 4 (16k ROM) or 8 (32k rom)
-	 LSR     A          \ So no need to worry about hexifying it
+	 LSR     A
+	 LSR     A
 	 LSR     A          
-	 \ ORA     #&30       \ ASC"0"
 	 SED                \ Decimal processing
 	 CMP     #&0A       \ Compare with 10
-	 ADC     #&30       \ Add 30+1
+	 ADC     #&30       \ Add 30(+1)
 	 CLD                \ Clear decimal flag
 	 STA     &7FE5      \ Write to M7 screen memory
 	 PLA                \ Restore A
 	 AND     #&0F       \ Get LSB
 	 SED                \ Decimal processing
 	 CMP     #&0A       \ Compare with 10
-	 ADC     #&30       \ Add 30+1
+	 ADC     #&30       \ Add 30(+1)
 	 CLD                \ Clear decimal flag
 	 STA     &7FE6      \ Write to M7 screen memory
-     \ PLA	
 	
 	lda (decompress_src,x)  ; next control byte
 	beq done                ; 0 signals end of decompression
@@ -58,7 +53,7 @@
 		inc decompress_dst  ; INC dst (used for both src of copy (-256) and dst)
 		bne pg2
 		inc decompress_dst+1
-		inc decompress_ctr
+		
 	.pg2
 	
 	dec decompress_tmp      ; count down bytes to copy
@@ -66,10 +61,9 @@
 	beq for                 ; after copying, go back for next control byte
 
 .copy_raw
-
 	tay                     ; bytes to copy from src
-.copy
 	
+.copy
 		inc decompress_src  ; INC src (1st time past control byte)
 		bne pg3
 		inc decompress_src+1
@@ -83,6 +77,7 @@
 		inc decompress_dst  ; INC dst
 		bne pg4
 		inc decompress_dst+1
+		inc decompress_ctr
 	.pg4
 	
 	bne copy                ; rest of bytes ; #1 replace with jmp if wrapping back to &0000 is required
