@@ -1,36 +1,28 @@
 \ Bird Strike ROM
 \
-\ TODO: Fix *HELP hang
-
 \ Zero page uses
-from    = &70
-to      = &72
-comline = &F2
-jump    = &38
-
-decompress_src = &50
-decompress_dst = &52
-decompress_tmp = &54
-decompress_ctr = &56
+jump           = &38        \ Ultimate jump destination
+decompress_src = &50        \ Decompression source LSB/MSB
+decompress_dst = &52        \ Decompression destination LSB/MSB
+decompress_tmp = &54        \ Decompression temp workspace
+decompress_ctr = &56        \ Decompression counter for user feedback
+comline        = &F2        \ OS command line pointer
 
 \ Stack
-stack   = &100
+stack          = &100       \ Stack address
 
 \ Build address
-addr    = &8000        \ Sideways ROM/RAM
+addr           = &8000      \ Sideways ROM/RAM
 
 \ Relocation source and destination
-srce    = addr + &400  \ Align with original load address for simplicity
-relo    = &1200        \ Original load addres
-game    = &1E00        \ Game start address
-pages   = &1E          \ Number of pages to relocate
-loadsc  = &AC00        \ Loading screen ROM address. Align with &7C00 for simplicity
+relo           = &1200      \ Original load addres
+game           = &1E00      \ Game start address
 
 \ OS calls
-osasci  = &FFE3
-osnewl  = $FFE7
-oswrch  = $FFEE
-osbyte  = &FFF4
+osasci         = &FFE3      \ OSASCI
+osnewl         = &FFE7      \ OSNEWL
+oswrch         = &FFEE      \ OSWRCH
+osbyte         = &FFF4      \ OSBYTE
 
 org   addr
 
@@ -105,24 +97,22 @@ org   addr
 	 JSR      osnewl
 	 LDX      #&FF
 	
-.help_loop                 \ Print the ROM title
+.help_loop                  \ Print the ROM title
      INX
 	 LDA      title, X
 	 JSR      osasci
 	 BNE      help_loop
-	 
 	 LDX      #&FF
 
-.ver_loop                  \ Print the ROM version
+.ver_loop                   \ Print the ROM version
 	 INX
 	 LDA      version, X
 	 JSR      osasci
 	 BNE      ver_loop
 	 JSR      osnewl
-	 
 	 LDX      #&FF
 	 
-.commands_loop             \ Print the ROM commands
+.commands_loop              \ Print the ROM commands
 	 INX
 	 LDA      commands, X
 	 JSR      osasci
@@ -168,10 +158,8 @@ org   addr
 	 LDA      table, X      \ Get the current byte from the command table
 	 BMI      found         \ end of string if A>=80, ie the jump address
 	 LDA      (comline), Y  \ Get the current byte from the command line
-	 
 	 CMP      #&2E			\ ASC"." - check for abbreviations
 	 BNE      not_dot
-	 
 	 LDA      table, X      \ Check we're not matching a dot with the end of the command
 	 CMP      #&0D
 	 BEQ      again         \ Try next command if so
@@ -207,10 +195,8 @@ org   addr
 	 RTS                    \ ... and return
 
 .found
-     
 	 CMP      #&FF          \ Check for the end of the command table
 	 BEQ      not_this_rom  \ If we've hit it, it's not for us
-
 	 STA      jump+1        \ otherwise, put the LSB in jump...
 	 INX
 	 LDA      table, X
@@ -218,17 +204,14 @@ org   addr
 	 JMP      (jump)        \ Then jump
 	 
 .table
-	 EQUS     "BIRDS",&0D  \ &0D ensures that only *BIRDS matches, not *BIRDSTR etc
+	 EQUS     "BIRDS",&0D   \ &0D ensures that only *BIRDS matches, not *BIRDSTR etc
 	 EQUB     instructions DIV 256
 	 EQUB     instructions MOD 256
-	 \ EQUS     "BIRDST",&0D   \ Test
-	 \ EQUB     birds DIV 256
-	 \ EQUB     birds MOD 256
 	 EQUB     &FF
 	 	 
 .commands
      EQUS     "  BIRDS"
-	 EQUB     $00
+	 EQUB     &00
 
 \ Game relocation code
 
@@ -255,7 +238,7 @@ org   addr
 	 JMP     vdu_done
 	 
 .vducalls
-	         \ 23;10,32;0;0;0;
+	 \ VDU 23;10,32;0;0;0;
      EQUB    &00,&00,&00,&00,&00,&00,&20,&0A,&00,&17
 	 
 .vdu_done
@@ -265,7 +248,6 @@ org   addr
      STY     decompress_src
      LDA     #HI(loadsc)
      STA     decompress_src+1
-
 	 LDY     #&00
      STY     decompress_dst
      LDA     #&7C
@@ -288,7 +270,7 @@ org   addr
 	 JSR     relocate
 	 
 	 \ Clear the counter
-	 LDA     #&00
+	 LDA     #&20
 	 STA     &7FE5
 	 STA     &7FE6
 	 
@@ -305,12 +287,12 @@ INCLUDE "trickys_decompactor.asm"
 
 
 \ The original game binary compressed and stored in ROM
-org srce
+.srce
 INCBIN "BIRDScmp"
 
 \ The original game loading screen *SAVEd, compressed
 \ and stored in ROM here
-org loadsc
+.loadsc
 INCBIN "ldscrmp"
 
 .end
