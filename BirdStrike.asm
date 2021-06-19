@@ -79,12 +79,11 @@ org   addr
 .table_loop
 	 INX
 	 INY
-	 STY &3000
 	 LDA      table, X      \ Get current command table byte
 	 CMP      (comline), Y  \ Compare with command line
 	 BEQ      table_loop    \ Keep checking
-	 CMP      #&FE          \ not sure what this is...
-	 BEQ      details       \ ...something to do with *HELP <command>?
+	 CMP      #&FE          \ Not currently used
+	 BEQ      details
 	 PLA
 	 TAX
 	 PLA
