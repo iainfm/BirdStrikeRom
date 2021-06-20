@@ -50,7 +50,7 @@ org   addr
 	 
 .service
      PHA
-	 CMP     #&0A
+	 CMP     #&03
 	 BEQ     startup
 	 CMP     #&09
 	 BEQ     help
