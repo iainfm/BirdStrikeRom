@@ -50,12 +50,34 @@ org   addr
 	 
 .service
      PHA
+	 CMP     #&0A
+	 BEQ     startup
 	 CMP     #&09
 	 BEQ     help
 	 CMP     #&04
-	 BEQ     unrecognised
+	 BEQ     skip \ unrecognised
 	 PLA
 	 RTS
+	 
+.startup
+	 TYA
+	 PHA
+	 LDY     #&FF
+	 
+.suloop
+	 INY
+	 LDA     sutext,Y
+	 JSR     oswrch
+	 BNE     suloop
+	 JSR     osnewl
+	 JSR     osnewl
+	 PLA
+	 TAY
+	 PLA
+	 RTS
+	 
+.sutext
+	 EQUS    "Bird Strike",&00
 	 
 .help
 	 TYA
@@ -92,6 +114,9 @@ org   addr
 .return
 	 PLA
 	 RTS
+	 
+.skip
+	 JMP      unrecognised
 
 .print_help
 	 JSR      osnewl
