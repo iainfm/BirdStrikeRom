@@ -15,7 +15,7 @@ stack          = &100       \ Stack address
 addr           = &8000      \ Sideways ROM/RAM
 
 \ Relocation source and destination
-relo           = &1200      \ Original load addres
+relo           = &1400      \ Original load addres
 game           = &1E00      \ Game start address
 
 \ OS calls
